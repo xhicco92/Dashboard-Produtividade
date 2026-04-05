@@ -29,11 +29,13 @@
         .area-card-header.collapsed .toggle-icon{transform:rotate(-90deg)}
         .area-card-content{padding:25px}
         .area-card-content.collapsed{display:none}
-        .meses-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #eee}
+        .meses-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:15px;padding-bottom:10px;border-bottom:1px solid #eee}
         .mes-btn{background:#ecf0f1;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:13px;transition:all .2s}
         .mes-btn:hover{background:#bdc3c7}
         .mes-btn.selected{background:#3498db;color:white}
-        .mes-btn.selected-ctrl{background:#2ecc71;color:white}
+        .filtro-reparacoes{display:flex;gap:15px;margin-bottom:20px;padding:10px;background:#f8f9fa;border-radius:10px;align-items:center}
+        .filtro-reparacoes label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px}
+        .filtro-reparacoes input{margin:0}
         .mini-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin-bottom:25px}
         .mini-card{background:#f8f9fa;padding:15px;border-radius:12px;text-align:center;border-left:4px solid;transition:transform .2s}
         .mini-card:hover{transform:translateY(-3px)}
@@ -44,6 +46,8 @@
         .progress-bad{color:#e74c3c}
         .area-chart-container{margin-top:20px;padding-top:20px;border-top:2px solid #eee}
         .area-chart-container h3{font-size:16px;margin-bottom:15px;color:#555}
+        .reparacoes-chart-container{margin-top:20px;padding-top:20px;border-top:2px solid #eee}
+        .reparacoes-chart-container h3{font-size:16px;margin-bottom:15px;color:#555}
         canvas{max-height:250px;width:100%}
         .tecnicos-table-wrapper{margin-top:20px;overflow-x:auto}
         .tecnicos-table-wrapper table{width:100%;border-collapse:collapse;font-size:13px}
@@ -52,7 +56,7 @@
         .btn-excluir{background:#e74c3c;color:white;border:none;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:11px}
         .btn-excluir:hover{background:#c0392b}
         .btn-restaurar{background:#3498db;color:white;border:none;border-radius:5px;padding:8px 15px;cursor:pointer;font-size:12px}
-        .info-text{font-size:12px;color:#888;margin-top:5px}
+        .info-text{font-size:12px;color:#888;margin-top:5px;margin-bottom:10px}
         @media (max-width:768px){.mini-cards{grid-template-columns:repeat(2,1fr)}.area-card-header h2{font-size:18px}}
     </style>
 </head>
@@ -93,7 +97,9 @@
 
     let rawData = [], processedEvents = [], excludedTecnicos = new Set();
     let charts = {};
-    let areaSelecionadosMeses = {}; // Guarda meses selecionados por área
+    let reparacoesCharts = {};
+    let areaSelecionadosMeses = {};
+    let areaFiltroReparacoes = {}; // 'sucesso' ou 'falha'
 
     function parseExcelDate(val) {
         if (!val) return null;
@@ -132,6 +138,7 @@
             document.getElementById('fileInfo').innerHTML = `📄 ${file.name} (${rawData.length} registos)`;
             excludedTecnicos.clear();
             areaSelecionadosMeses = {};
+            areaFiltroReparacoes = {};
             processEvents();
             populateFilters();
         };
@@ -153,8 +160,16 @@
             if (dataAnalise && quemAnalise) {
                 processedEvents.push({ tipo: 'analise', data: dataAnalise, tecnico: quemAnalise, area, polo });
             }
-            if (dataReparacao && tecnicoReparacao && resultadoOrcamento !== "Orçamento Rejeitado") {
-                processedEvents.push({ tipo: 'reparacao', data: dataReparacao, tecnico: tecnicoReparacao, area, polo });
+            if (dataReparacao && tecnicoReparacao) {
+                const isRejeitado = resultadoOrcamento === "Orçamento Rejeitado";
+                processedEvents.push({ 
+                    tipo: 'reparacao', 
+                    data: dataReparacao, 
+                    tecnico: tecnicoReparacao, 
+                    area, 
+                    polo,
+                    sucesso: !isRejeitado
+                });
             }
         });
     }
@@ -187,7 +202,14 @@
         renderDashboard();
     }
 
-    function getFilteredEvents(area, ano, polo, mesesSelecionados = null) {
+    function shouldIncludeReparacao(event, filtro) {
+        if (event.tipo !== 'reparacao') return true;
+        if (filtro === 'sucesso') return event.sucesso === true;
+        if (filtro === 'falha') return true; // inclui todos (sucesso e rejeitados)
+        return true;
+    }
+
+    function getFilteredEvents(area, ano, polo, mesesSelecionados, filtroReparacoes) {
         const poloValue = document.getElementById('poloSelect').value;
         const finalPolo = polo !== undefined ? polo : poloValue;
         
@@ -200,6 +222,7 @@
                 const eventMes = event.data.getMonth() + 1;
                 if (!mesesSelecionados.includes(eventMes)) return false;
             }
+            if (!shouldIncludeReparacao(event, filtroReparacoes)) return false;
             return true;
         });
     }
@@ -216,8 +239,8 @@
         return produtividade;
     }
 
-    function getAreaData(area, ano, polo, mesesSelecionados) {
-        const events = getFilteredEvents(area, ano, polo, mesesSelecionados);
+    function getAreaData(area, ano, polo, mesesSelecionados, filtroReparacoes) {
+        const events = getFilteredEvents(area, ano, polo, mesesSelecionados, filtroReparacoes);
         
         const tecnicosMap = new Map();
         events.forEach(event => {
@@ -227,7 +250,7 @@
             }
             const tech = tecnicosMap.get(key);
             if (event.tipo === 'analise') tech.totalAnalises++;
-            else tech.totalReparacoes++;
+            else if (event.tipo === 'reparacao') tech.totalReparacoes++;
             tech.diasTrabalhados.add(event.data.toDateString());
         });
         
@@ -253,11 +276,11 @@
         return { area, tecnicos: tecnicosList, totalAnalises, totalReparacoes, mediaProdutividade, mediaDiaria: mediaDiariaReparacoes, totalTecnicos: tecnicosList.length };
     }
 
-    function getEvolucaoData(area, ano, polo) {
+    function getEvolucaoData(area, ano, polo, filtroReparacoes) {
         const meses = [1,2,3,4,5,6,7,8,9,10,11,12];
         const produtividades = [];
         meses.forEach(mes => {
-            const events = getFilteredEvents(area, ano, polo, [mes]);
+            const events = getFilteredEvents(area, ano, polo, [mes], filtroReparacoes);
             const tecnicosMap = new Map();
             events.forEach(event => {
                 const key = event.tecnico;
@@ -266,7 +289,7 @@
                 }
                 const tech = tecnicosMap.get(key);
                 if (event.tipo === 'analise') tech.totalAnalises++;
-                else tech.totalReparacoes++;
+                else if (event.tipo === 'reparacao') tech.totalReparacoes++;
                 tech.diasTrabalhados.add(event.data.toDateString());
             });
             let somaProd = 0;
@@ -282,6 +305,41 @@
         return produtividades;
     }
 
+    function getReparacoesMensaisData(area, ano, polo, filtroReparacoes) {
+        const meses = [1,2,3,4,5,6,7,8,9,10,11,12];
+        const reparacoesPorMes = [];
+        const diasPorMes = [31,28,31,30,31,30,31,31,30,31,30,31];
+        
+        // Ajustar fevereiro para ano bissexto
+        const isBissexto = (ano % 4 === 0 && ano % 100 !== 0) || (ano % 400 === 0);
+        if (isBissexto) diasPorMes[1] = 29;
+        
+        meses.forEach(mes => {
+            const events = getFilteredEvents(area, ano, polo, [mes], filtroReparacoes);
+            let totalReparacoes = 0;
+            const diasComReparacao = new Set();
+            
+            events.forEach(event => {
+                if (event.tipo === 'reparacao') {
+                    totalReparacoes++;
+                    diasComReparacao.add(event.data.toDateString());
+                }
+            });
+            
+            const totalDias = diasComReparacao.size;
+            const mediaPorDia = totalDias > 0 ? totalReparacoes / totalDias : 0;
+            
+            reparacoesPorMes.push({
+                mes,
+                total: totalReparacoes,
+                mediaPorDia: mediaPorDia,
+                diasComRegisto: totalDias
+            });
+        });
+        
+        return reparacoesPorMes;
+    }
+
     function renderDashboard() {
         const ano = parseInt(document.getElementById('anoSelect').value);
         const polo = document.getElementById('poloSelect').value;
@@ -291,24 +349,23 @@
         
         const areas = Object.keys(METAS);
         
-        // Inicializar seleções de meses para áreas que ainda não têm
         areas.forEach(area => {
-            if (!areaSelecionadosMeses[area]) {
-                areaSelecionadosMeses[area] = []; // vazio = todos os meses
-            }
-        });
-        
-        areas.forEach(area => {
+            if (!areaSelecionadosMeses[area]) areaSelecionadosMeses[area] = [];
+            if (!areaFiltroReparacoes[area]) areaFiltroReparacoes[area] = 'sucesso';
+            
             const mesesSelecionados = areaSelecionadosMeses[area];
-            const areaData = getAreaData(area, ano, polo, mesesSelecionados);
-            const evolucaoData = getEvolucaoData(area, ano, polo);
+            const filtroReparacoes = areaFiltroReparacoes[area];
+            const areaData = getAreaData(area, ano, polo, mesesSelecionados, filtroReparacoes);
+            const evolucaoData = getEvolucaoData(area, ano, polo, filtroReparacoes);
+            const reparacoesMensais = getReparacoesMensaisData(area, ano, polo, filtroReparacoes);
             const meta = METAS[area];
             const cor = meta.cor;
             
-            // Calcular máximo de produtividade para escala do gráfico
             let maxProdutividade = 100;
             const maxArea = Math.max(...evolucaoData.filter(v => v !== null));
             if (maxArea > maxProdutividade) maxProdutividade = Math.ceil(maxArea / 10) * 10;
+            
+            const maxReparacoes = Math.max(...reparacoesMensais.map(r => r.total), 1);
             
             const areaCard = document.createElement('div');
             areaCard.className = 'area-card';
@@ -329,7 +386,7 @@
                 btn.textContent = NOMES_MESES[i];
                 btn.className = 'mes-btn';
                 if (mesesSelecionados.length === 0) {
-                    // Nenhum selecionado = todos visíveis, mas sem destaque
+                    // nenhum selecionado
                 } else if (mesesSelecionados.includes(i+1)) {
                     btn.classList.add('selected');
                 }
@@ -337,15 +394,10 @@
                 btn.onclick = (e) => {
                     const mesNum = i + 1;
                     if (e.ctrlKey) {
-                        // Ctrl+Clique: toggle
                         const index = areaSelecionadosMeses[area].indexOf(mesNum);
-                        if (index === -1) {
-                            areaSelecionadosMeses[area].push(mesNum);
-                        } else {
-                            areaSelecionadosMeses[area].splice(index, 1);
-                        }
+                        if (index === -1) areaSelecionadosMeses[area].push(mesNum);
+                        else areaSelecionadosMeses[area].splice(index, 1);
                     } else {
-                        // Clique simples: seleciona apenas este mês
                         areaSelecionadosMeses[area] = [mesNum];
                     }
                     renderDashboard();
@@ -353,13 +405,32 @@
                 mesesDiv.appendChild(btn);
             }
             
-            // Info text
             const infoText = document.createElement('div');
             infoText.className = 'info-text';
-            infoText.innerHTML = mesesSelecionados.length === 0 ? '📅 Todos os meses selecionados' : `📅 ${mesesSelecionados.length} mês(es) selecionado(s): ${mesesSelecionados.map(m => NOMES_MESES[m-1]).join(', ')}`;
+            infoText.innerHTML = mesesSelecionados.length === 0 ? '📅 Todos os meses selecionados' : `📅 ${mesesSelecionados.length} mês(es): ${mesesSelecionados.map(m => NOMES_MESES[m-1]).join(', ')}`;
+            
+            // Filtro de reparações (sucesso/falha)
+            const filtroDiv = document.createElement('div');
+            filtroDiv.className = 'filtro-reparacoes';
+            filtroDiv.innerHTML = `
+                <span style="font-size:13px;color:#555;">🔧 Reparações:</span>
+                <label><input type="radio" name="filtro-rep-${area.replace(/\s/g, '')}" value="sucesso" ${filtroReparacoes === 'sucesso' ? 'checked' : ''}> ✅ Com sucesso (exclui rejeitados)</label>
+                <label><input type="radio" name="filtro-rep-${area.replace(/\s/g, '')}" value="falha" ${filtroReparacoes === 'falha' ? 'checked' : ''}> ⚠️ Sem sucesso (inclui rejeitados)</label>
+            `;
+            
+            const radios = filtroDiv.querySelectorAll('input');
+            radios.forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        areaFiltroReparacoes[area] = e.target.value;
+                        renderDashboard();
+                    }
+                });
+            });
             
             content.appendChild(mesesDiv);
             content.appendChild(infoText);
+            content.appendChild(filtroDiv);
             
             // Mini Cards
             const miniCardsHtml = `
@@ -373,11 +444,17 @@
             `;
             content.insertAdjacentHTML('beforeend', miniCardsHtml);
             
-            // Gráfico
+            // Gráfico de evolução de produtividade
             const chartContainer = document.createElement('div');
             chartContainer.className = 'area-chart-container';
             chartContainer.innerHTML = `<h3>📈 Evolução Mensal de Produtividade - ${area}</h3><canvas id="chart-${area.replace(/\s/g, '')}"></canvas>`;
             content.appendChild(chartContainer);
+            
+            // Gráfico de reparações mensais
+            const reparacoesChartContainer = document.createElement('div');
+            reparacoesChartContainer.className = 'reparacoes-chart-container';
+            reparacoesChartContainer.innerHTML = `<h3>🔧 Reparações Mensais - ${area} (${filtroReparacoes === 'sucesso' ? 'Com Sucesso' : 'Inclui Rejeitados'})</h3><canvas id="reparacoes-chart-${area.replace(/\s/g, '')}"></canvas>`;
+            content.appendChild(reparacoesChartContainer);
             
             // Tabela de técnicos
             const tecnicosTable = document.createElement('div');
@@ -414,7 +491,7 @@
                 });
             }
             
-            // Criar gráfico
+            // Criar gráfico de produtividade
             const ctx = document.getElementById(`chart-${area.replace(/\s/g, '')}`).getContext('2d');
             if (charts[area]) charts[area].destroy();
             charts[area] = new Chart(ctx, {
@@ -424,6 +501,72 @@
                     responsive: true, maintainAspectRatio: true,
                     plugins: { tooltip: { callbacks: { label: (ctx) => ctx.raw !== null ? `Produtividade: ${ctx.raw.toFixed(1)}%` : 'Sem dados' } } },
                     scales: { y: { beginAtZero: true, title: { display: true, text: '%' }, max: maxProdutividade }, x: { title: { display: true, text: 'Mês' } } }
+                }
+            });
+            
+            // Criar gráfico de reparações (barras + linha de média)
+            const ctxRep = document.getElementById(`reparacoes-chart-${area.replace(/\s/g, '')}`).getContext('2d');
+            if (reparacoesCharts[area]) reparacoesCharts[area].destroy();
+            reparacoesCharts[area] = new Chart(ctxRep, {
+                type: 'bar',
+                data: {
+                    labels: NOMES_MESES,
+                    datasets: [
+                        {
+                            label: 'Total Reparações',
+                            data: reparacoesMensais.map(r => r.total),
+                            backgroundColor: cor + '80',
+                            borderColor: cor,
+                            borderWidth: 1,
+                            borderRadius: 6,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Média de Reparações / Dia',
+                            data: reparacoesMensais.map(r => r.mediaPorDia),
+                            type: 'line',
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#e74c3c',
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    let value = context.raw;
+                                    if (context.datasetIndex === 0) {
+                                        return `${label}: ${value} reparações`;
+                                    } else {
+                                        return `${label}: ${value.toFixed(1)} rep/dia`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Total de Reparações' },
+                            position: 'left'
+                        },
+                        y1: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Média por Dia' },
+                            position: 'right',
+                            grid: { drawOnChartArea: false }
+                        },
+                        x: { title: { display: true, text: 'Mês' } }
+                    }
                 }
             });
             
