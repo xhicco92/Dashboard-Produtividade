@@ -33,7 +33,7 @@
         .mes-btn{background:#ecf0f1;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:13px;transition:all .2s}
         .mes-btn:hover{background:#bdc3c7}
         .mes-btn.selected{background:#3498db;color:white}
-        .filtro-reparacoes{display:flex;gap:15px;margin-bottom:20px;padding:10px;background:#f8f9fa;border-radius:10px;align-items:center}
+        .filtro-reparacoes{display:flex;gap:15px;margin-bottom:20px;padding:10px;background:#f8f9fa;border-radius:10px;align-items:center;flex-wrap:wrap}
         .filtro-reparacoes label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px}
         .filtro-reparacoes input{margin:0}
         .mini-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin-bottom:25px}
@@ -57,6 +57,7 @@
         .btn-excluir:hover{background:#c0392b}
         .btn-restaurar{background:#3498db;color:white;border:none;border-radius:5px;padding:8px 15px;cursor:pointer;font-size:12px}
         .info-text{font-size:12px;color:#888;margin-top:5px;margin-bottom:10px}
+        .legenda-grafico{font-size:11px;color:#666;margin-top:8px;text-align:center}
         @media (max-width:768px){.mini-cards{grid-template-columns:repeat(2,1fr)}.area-card-header h2{font-size:18px}}
     </style>
 </head>
@@ -99,7 +100,7 @@
     let charts = {};
     let reparacoesCharts = {};
     let areaSelecionadosMeses = {};
-    let areaFiltroReparacoes = {}; // 'sucesso' ou 'falha'
+    let areaFiltroReparacoes = {};
 
     function parseExcelDate(val) {
         if (!val) return null;
@@ -205,7 +206,7 @@
     function shouldIncludeReparacao(event, filtro) {
         if (event.tipo !== 'reparacao') return true;
         if (filtro === 'sucesso') return event.sucesso === true;
-        if (filtro === 'falha') return true; // inclui todos (sucesso e rejeitados)
+        if (filtro === 'falha') return true;
         return true;
     }
 
@@ -264,7 +265,6 @@
         const totalReparacoes = tecnicosList.reduce((s, t) => s + t.totalReparacoes, 0);
         const mediaProdutividade = tecnicosList.length ? tecnicosList.reduce((s, t) => s + t.produtividade, 0) / tecnicosList.length : 0;
         
-        // Média diária = apenas REPARAÇÕES (tarefas de reparação / total dias trabalhados)
         let totalReparacoesCount = 0;
         let totalDias = 0;
         tecnicosList.forEach(tech => {
@@ -308,31 +308,45 @@
     function getReparacoesMensaisData(area, ano, polo, filtroReparacoes) {
         const meses = [1,2,3,4,5,6,7,8,9,10,11,12];
         const reparacoesPorMes = [];
-        const diasPorMes = [31,28,31,30,31,30,31,31,30,31,30,31];
-        
-        // Ajustar fevereiro para ano bissexto
-        const isBissexto = (ano % 4 === 0 && ano % 100 !== 0) || (ano % 400 === 0);
-        if (isBissexto) diasPorMes[1] = 29;
         
         meses.forEach(mes => {
             const events = getFilteredEvents(area, ano, polo, [mes], filtroReparacoes);
             let totalReparacoes = 0;
             const diasComReparacao = new Set();
+            const reparacoesPorTecnico = new Map(); // para média por técnico
             
             events.forEach(event => {
                 if (event.tipo === 'reparacao') {
                     totalReparacoes++;
                     diasComReparacao.add(event.data.toDateString());
+                    
+                    if (!reparacoesPorTecnico.has(event.tecnico)) {
+                        reparacoesPorTecnico.set(event.tecnico, { total: 0, dias: new Set() });
+                    }
+                    const techData = reparacoesPorTecnico.get(event.tecnico);
+                    techData.total++;
+                    techData.dias.add(event.data.toDateString());
                 }
             });
             
             const totalDias = diasComReparacao.size;
             const mediaPorDia = totalDias > 0 ? totalReparacoes / totalDias : 0;
             
+            // Média de reparações/dia por técnico
+            let somaMediaPorTecnico = 0;
+            let countTecnicos = 0;
+            reparacoesPorTecnico.forEach(techData => {
+                const mediaTecnico = techData.dias.size > 0 ? techData.total / techData.dias.size : 0;
+                somaMediaPorTecnico += mediaTecnico;
+                countTecnicos++;
+            });
+            const mediaPorTecnicoPorDia = countTecnicos > 0 ? somaMediaPorTecnico / countTecnicos : 0;
+            
             reparacoesPorMes.push({
                 mes,
                 total: totalReparacoes,
                 mediaPorDia: mediaPorDia,
+                mediaPorTecnicoPorDia: mediaPorTecnicoPorDia,
                 diasComRegisto: totalDias
             });
         });
@@ -366,6 +380,7 @@
             if (maxArea > maxProdutividade) maxProdutividade = Math.ceil(maxArea / 10) * 10;
             
             const maxReparacoes = Math.max(...reparacoesMensais.map(r => r.total), 1);
+            const maxMediaTecnico = Math.max(...reparacoesMensais.map(r => r.mediaPorTecnicoPorDia), 1);
             
             const areaCard = document.createElement('div');
             areaCard.className = 'area-card';
@@ -409,13 +424,14 @@
             infoText.className = 'info-text';
             infoText.innerHTML = mesesSelecionados.length === 0 ? '📅 Todos os meses selecionados' : `📅 ${mesesSelecionados.length} mês(es): ${mesesSelecionados.map(m => NOMES_MESES[m-1]).join(', ')}`;
             
-            // Filtro de reparações (sucesso/falha)
+            // Filtro de reparações
             const filtroDiv = document.createElement('div');
             filtroDiv.className = 'filtro-reparacoes';
             filtroDiv.innerHTML = `
-                <span style="font-size:13px;color:#555;">🔧 Reparações:</span>
+                <span style="font-size:13px;color:#555;">🔧 Filtro de Reparações:</span>
                 <label><input type="radio" name="filtro-rep-${area.replace(/\s/g, '')}" value="sucesso" ${filtroReparacoes === 'sucesso' ? 'checked' : ''}> ✅ Com sucesso (exclui rejeitados)</label>
                 <label><input type="radio" name="filtro-rep-${area.replace(/\s/g, '')}" value="falha" ${filtroReparacoes === 'falha' ? 'checked' : ''}> ⚠️ Sem sucesso (inclui rejeitados)</label>
+                <span style="font-size:12px;color:#888;margin-left:auto;">⚠️ Afeta todos os cards e gráficos</span>
             `;
             
             const radios = filtroDiv.querySelectorAll('input');
@@ -453,7 +469,8 @@
             // Gráfico de reparações mensais
             const reparacoesChartContainer = document.createElement('div');
             reparacoesChartContainer.className = 'reparacoes-chart-container';
-            reparacoesChartContainer.innerHTML = `<h3>🔧 Reparações Mensais - ${area} (${filtroReparacoes === 'sucesso' ? 'Com Sucesso' : 'Inclui Rejeitados'})</h3><canvas id="reparacoes-chart-${area.replace(/\s/g, '')}"></canvas>`;
+            reparacoesChartContainer.innerHTML = `<h3>🔧 Reparações Mensais - ${area} (${filtroReparacoes === 'sucesso' ? 'Com Sucesso' : 'Inclui Rejeitados'})</h3><canvas id="reparacoes-chart-${area.replace(/\s/g, '')}"></canvas>
+            <div class="legenda-grafico">📊 Barras: Total de reparações | 🔴 Linha vermelha: Média de reparações/dia (global) | 🟢 Linha verde: Média de reparações/dia por técnico</div>`;
             content.appendChild(reparacoesChartContainer);
             
             // Tabela de técnicos
@@ -461,8 +478,9 @@
             tecnicosTable.className = 'tecnicos-table-wrapper';
             tecnicosTable.innerHTML = `
                 <h4 style="margin:20px 0 10px 0;">👨‍🔧 Técnicos da Área</h4>
-                <table><thead><tr><th>Técnico</th><th>Dias Trab.</th><th>Análises</th><th>Reparações</th><th>Produtividade</th><th>Ação</th></tr></thead>
-                <tbody id="tecnicos-body-${area.replace(/\s/g, '')}"></tbody></table>
+                <table><thead>胰腺<th>Técnico</th><th>Dias Trab.</th><th>Análises</th><th>Reparações</th><th>Produtividade</th><th>Ação</th></tr></thead>
+                <tbody id="tecnicos-body-${area.replace(/\s/g, '')}"></tbody>
+            </table>
             `;
             content.appendChild(tecnicosTable);
             
@@ -491,7 +509,7 @@
                 });
             }
             
-            // Criar gráfico de produtividade
+            // Gráfico de produtividade
             const ctx = document.getElementById(`chart-${area.replace(/\s/g, '')}`).getContext('2d');
             if (charts[area]) charts[area].destroy();
             charts[area] = new Chart(ctx, {
@@ -504,7 +522,7 @@
                 }
             });
             
-            // Criar gráfico de reparações (barras + linha de média)
+            // Gráfico de reparações (barras + linha média global + linha média por técnico)
             const ctxRep = document.getElementById(`reparacoes-chart-${area.replace(/\s/g, '')}`).getContext('2d');
             if (reparacoesCharts[area]) reparacoesCharts[area].destroy();
             reparacoesCharts[area] = new Chart(ctxRep, {
@@ -519,10 +537,11 @@
                             borderColor: cor,
                             borderWidth: 1,
                             borderRadius: 6,
-                            yAxisID: 'y'
+                            yAxisID: 'y',
+                            order: 2
                         },
                         {
-                            label: 'Média de Reparações / Dia',
+                            label: 'Média de Reparações / Dia (Global)',
                             data: reparacoesMensais.map(r => r.mediaPorDia),
                             type: 'line',
                             borderColor: '#e74c3c',
@@ -531,7 +550,21 @@
                             tension: 0.3,
                             pointRadius: 4,
                             pointBackgroundColor: '#e74c3c',
-                            yAxisID: 'y1'
+                            yAxisID: 'y1',
+                            order: 1
+                        },
+                        {
+                            label: 'Média de Reparações / Dia por Técnico',
+                            data: reparacoesMensais.map(r => r.mediaPorTecnicoPorDia),
+                            type: 'line',
+                            borderColor: '#2ecc71',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#2ecc71',
+                            yAxisID: 'y1',
+                            order: 1
                         }
                     ]
                 },
@@ -563,7 +596,8 @@
                             beginAtZero: true,
                             title: { display: true, text: 'Média por Dia' },
                             position: 'right',
-                            grid: { drawOnChartArea: false }
+                            grid: { drawOnChartArea: false },
+                            max: Math.max(maxMediaTecnico * 1.2, 5)
                         },
                         x: { title: { display: true, text: 'Mês' } }
                     }
