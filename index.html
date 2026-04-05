@@ -7,300 +7,47 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
-            padding: 20px;
-            color: #1a1a2e;
-        }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-        }
-
-        /* Header */
-        .header {
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
-            color: white;
-            padding: 25px 30px;
-            border-radius: 15px;
-            margin-bottom: 25px;
-        }
-
-        .header h1 {
-            font-size: 28px;
-            margin-bottom: 8px;
-        }
-
-        .header p {
-            opacity: 0.8;
-            font-size: 14px;
-        }
-
-        /* Upload Area */
-        .upload-area {
-            background: white;
-            border: 2px dashed #ccc;
-            border-radius: 15px;
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 25px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .upload-area:hover {
-            border-color: #1a1a2e;
-            background: #fafafa;
-        }
-
-        .upload-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-
-        .file-info {
-            margin-top: 15px;
-            font-size: 14px;
-            color: #666;
-        }
-
-        /* Filters */
-        .filters {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 25px;
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            align-items: flex-end;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .filter-group label {
-            font-weight: 600;
-            font-size: 14px;
-            color: #555;
-        }
-
-        .filter-group select {
-            padding: 10px 15px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-            min-width: 150px;
-            cursor: pointer;
-        }
-
-        /* Área Cards - estilo expansível */
-        .area-card {
-            background: white;
-            border-radius: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .area-card-header {
-            background: linear-gradient(135deg, #2c3e54, #1a2a3a);
-            color: white;
-            padding: 20px 25px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: background 0.3s;
-        }
-
-        .area-card-header:hover {
-            background: linear-gradient(135deg, #34495e, #243342);
-        }
-
-        .area-card-header h2 {
-            font-size: 24px;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .area-card-header .toggle-icon {
-            font-size: 28px;
-            transition: transform 0.3s;
-        }
-
-        .area-card-header.collapsed .toggle-icon {
-            transform: rotate(-90deg);
-        }
-
-        .area-card-content {
-            padding: 25px;
-            display: block;
-        }
-
-        .area-card-content.collapsed {
-            display: none;
-        }
-
-        /* Mini Cards dentro da área */
-        .mini-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .mini-card {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 12px;
-            text-align: center;
-            border-left: 4px solid;
-            transition: transform 0.2s;
-        }
-
-        .mini-card:hover {
-            transform: translateY(-3px);
-        }
-
-        .mini-card h4 {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .mini-card .value {
-            font-size: 28px;
-            font-weight: bold;
-            color: #1a1a2e;
-        }
-
-        .mini-card .unit {
-            font-size: 12px;
-            color: #888;
-        }
-
-        .progress-good {
-            color: #00b894;
-        }
-
-        .progress-bad {
-            color: #e74c3c;
-        }
-
-        /* Gráfico da área */
-        .area-chart-container {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 2px solid #eee;
-        }
-
-        .area-chart-container h3 {
-            font-size: 16px;
-            margin-bottom: 15px;
-            color: #555;
-        }
-
-        canvas {
-            max-height: 250px;
-            width: 100%;
-        }
-
-        /* Tabela de técnicos da área */
-        .tecnicos-table-wrapper {
-            margin-top: 20px;
-            overflow-x: auto;
-        }
-
-        .tecnicos-table-wrapper table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        .tecnicos-table-wrapper th,
-        .tecnicos-table-wrapper td {
-            padding: 10px 8px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-
-        .tecnicos-table-wrapper th {
-            background: #f8f9fa;
-            font-weight: 600;
-            color: #555;
-        }
-
-        .btn-excluir {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            padding: 4px 8px;
-            cursor: pointer;
-            font-size: 11px;
-        }
-
-        .btn-excluir:hover {
-            background: #c0392b;
-        }
-
-        .btn-restaurar {
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            padding: 8px 15px;
-            cursor: pointer;
-            font-size: 12px;
-            margin-left: 10px;
-        }
-
-        .btn-restaurar:hover {
-            background: #2980b9;
-        }
-
-        .area-actions {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        /* Loading */
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #888;
-        }
-
-        @media (max-width: 768px) {
-            .filters {
-                flex-direction: column;
-            }
-            .mini-cards {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            .area-card-header h2 {
-                font-size: 18px;
-            }
-        }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#f0f2f5;padding:20px;color:#1a1a2e}
+        .container{max-width:1600px;margin:0 auto}
+        .header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:white;padding:25px 30px;border-radius:15px;margin-bottom:25px}
+        .header h1{font-size:28px;margin-bottom:8px}
+        .header p{opacity:0.8;font-size:14px}
+        .upload-area{background:white;border:2px dashed #ccc;border-radius:15px;padding:30px;text-align:center;margin-bottom:25px;cursor:pointer;transition:all .3s ease}
+        .upload-area:hover{border-color:#1a1a2e;background:#fafafa}
+        .upload-icon{font-size:48px;margin-bottom:15px}
+        .file-info{margin-top:15px;font-size:14px;color:#666}
+        .filters{background:white;padding:20px;border-radius:15px;margin-bottom:25px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+        .filter-group{display:flex;flex-direction:column;gap:8px}
+        .filter-group label{font-weight:600;font-size:14px;color:#555}
+        .filter-group select{padding:10px 15px;border:1px solid #ddd;border-radius:8px;font-size:14px;min-width:150px;cursor:pointer}
+        .area-card{background:white;border-radius:20px;margin-bottom:30px;box-shadow:0 4px 15px rgba(0,0,0,0.1);overflow:hidden}
+        .area-card-header{background:linear-gradient(135deg,#2c3e54,#1a2a3a);color:white;padding:20px 25px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+        .area-card-header:hover{background:linear-gradient(135deg,#34495e,#243342)}
+        .area-card-header h2{font-size:24px;margin:0;display:flex;align-items:center;gap:10px}
+        .toggle-icon{font-size:28px;transition:transform .3s}
+        .area-card-header.collapsed .toggle-icon{transform:rotate(-90deg)}
+        .area-card-content{padding:25px}
+        .area-card-content.collapsed{display:none}
+        .mini-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin-bottom:25px}
+        .mini-card{background:#f8f9fa;padding:15px;border-radius:12px;text-align:center;border-left:4px solid;transition:transform .2s}
+        .mini-card:hover{transform:translateY(-3px)}
+        .mini-card h4{font-size:12px;color:#666;margin-bottom:8px;text-transform:uppercase}
+        .mini-card .value{font-size:28px;font-weight:bold;color:#1a1a2e}
+        .mini-card .unit{font-size:12px;color:#888}
+        .progress-good{color:#00b894}
+        .progress-bad{color:#e74c3c}
+        .area-chart-container{margin-top:20px;padding-top:20px;border-top:2px solid #eee}
+        .area-chart-container h3{font-size:16px;margin-bottom:15px;color:#555}
+        canvas{max-height:250px;width:100%}
+        .tecnicos-table-wrapper{margin-top:20px;overflow-x:auto}
+        .tecnicos-table-wrapper table{width:100%;border-collapse:collapse;font-size:13px}
+        .tecnicos-table-wrapper th,.tecnicos-table-wrapper td{padding:10px 8px;text-align:left;border-bottom:1px solid #eee}
+        .tecnicos-table-wrapper th{background:#f8f9fa;font-weight:600;color:#555}
+        .btn-excluir{background:#e74c3c;color:white;border:none;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:11px}
+        .btn-excluir:hover{background:#c0392b}
+        .btn-restaurar{background:#3498db;color:white;border:none;border-radius:5px;padding:8px 15px;cursor:pointer;font-size:12px}
+        @media (max-width:768px){.filters{flex-direction:column}.mini-cards{grid-template-columns:repeat(2,1fr)}.area-card-header h2{font-size:18px}}
     </style>
 </head>
 <body>
@@ -318,28 +65,15 @@
     </div>
 
     <div class="filters" id="filters" style="display: none;">
-        <div class="filter-group">
-            <label>📅 Ano</label>
-            <select id="anoSelect"></select>
-        </div>
-        <div class="filter-group">
-            <label>📆 Mês</label>
-            <select id="mesSelect">
-                <option value="1">Janeiro</option><option value="2">Fevereiro</option>
-                <option value="3">Março</option><option value="4">Abril</option>
-                <option value="5">Maio</option><option value="6">Junho</option>
-                <option value="7">Julho</option><option value="8">Agosto</option>
-                <option value="9">Setembro</option><option value="10">Outubro</option>
-                <option value="11">Novembro</option><option value="12">Dezembro</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <label>📍 Polo</label>
-            <select id="poloSelect"><option value="all">Todos os Polos</option></select>
-        </div>
-        <div class="filter-group">
-            <button id="restaurarTodosBtn" class="btn-restaurar">Restaurar Todos os Técnicos</button>
-        </div>
+        <div class="filter-group"><label>📅 Ano</label><select id="anoSelect"></select></div>
+        <div class="filter-group"><label>📆 Mês</label><select id="mesSelect">
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+            <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+            <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select></div>
+        <div class="filter-group"><label>📍 Polo</label><select id="poloSelect"><option value="all">Todos os Polos</option></select></div>
+        <div class="filter-group"><button id="restaurarTodosBtn" class="btn-restaurar">Restaurar Todos os Técnicos</button></div>
     </div>
 
     <div id="dashboardContent" style="display: none;"></div>
@@ -355,10 +89,7 @@
         "Som e Imagem": { analise: 23, reparacao: 10, cor: "#1abc9c" }
     };
 
-    let rawData = [];
-    let processedEvents = [];
-    let excludedTecnicos = new Set();
-    let charts = {}; // Guardar gráficos por área
+    let rawData = [], processedEvents = [], excludedTecnicos = new Set(), charts = {};
 
     function parseExcelDate(val) {
         if (!val) return null;
@@ -370,9 +101,7 @@
             let parsed = new Date(val);
             if (!isNaN(parsed)) return parsed;
             const parts = val.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-            if (parts) {
-                return new Date(parts[3], parts[2]-1, parts[1]);
-            }
+            if (parts) return new Date(parts[3], parts[2]-1, parts[1]);
         }
         return null;
     }
@@ -380,18 +109,13 @@
     function getArea(row) {
         const tipologia = row.tipologia;
         const garantia = row.tipo_garantia;
-        if (tipologia === "Mobile") {
-            return garantia === "Seguro D&G" ? "Mobile D&G" : "Mobile Cliente";
-        }
+        if (tipologia === "Mobile") return garantia === "Seguro D&G" ? "Mobile D&G" : "Mobile Cliente";
         return tipologia;
     }
 
     document.getElementById('uploadArea').addEventListener('click', () => document.getElementById('fileInput').click());
     document.getElementById('fileInput').addEventListener('change', (e) => { if(e.target.files[0]) processFile(e.target.files[0]); });
-    document.getElementById('restaurarTodosBtn').addEventListener('click', () => {
-        excludedTecnicos.clear();
-        renderDashboard();
-    });
+    document.getElementById('restaurarTodosBtn').addEventListener('click', () => { excludedTecnicos.clear(); renderDashboard(); });
 
     function processFile(file) {
         const reader = new FileReader();
@@ -414,7 +138,6 @@
         rawData.forEach(row => {
             const area = getArea(row);
             if (!METAS[area]) return;
-            
             const polo = row.polo || "Não definido";
             const dataAnalise = parseExcelDate(row.analise_tecnica);
             const quemAnalise = row.quem_analise_tecnica;
@@ -423,35 +146,17 @@
             const resultadoOrcamento = row.resultado_orcamento;
 
             if (dataAnalise && quemAnalise) {
-                processedEvents.push({
-                    tipo: 'analise',
-                    data: dataAnalise,
-                    tecnico: quemAnalise,
-                    area: area,
-                    polo: polo
-                });
+                processedEvents.push({ tipo: 'analise', data: dataAnalise, tecnico: quemAnalise, area, polo });
             }
-
             if (dataReparacao && tecnicoReparacao && resultadoOrcamento !== "Orçamento Rejeitado") {
-                processedEvents.push({
-                    tipo: 'reparacao',
-                    data: dataReparacao,
-                    tecnico: tecnicoReparacao,
-                    area: area,
-                    polo: polo
-                });
+                processedEvents.push({ tipo: 'reparacao', data: dataReparacao, tecnico: tecnicoReparacao, area, polo });
             }
         });
     }
 
     function populateFilters() {
-        const anos = new Set();
-        const polos = new Set();
-        
-        processedEvents.forEach(event => {
-            anos.add(event.data.getFullYear());
-            polos.add(event.polo);
-        });
+        const anos = new Set(), polos = new Set();
+        processedEvents.forEach(event => { anos.add(event.data.getFullYear()); polos.add(event.polo); });
         
         const anoSelect = document.getElementById('anoSelect');
         anoSelect.innerHTML = '';
@@ -472,11 +177,9 @@
         });
 
         document.getElementById('filters').style.display = 'flex';
-        
         anoSelect.addEventListener('change', () => renderDashboard());
         document.getElementById('mesSelect').addEventListener('change', () => renderDashboard());
         poloSelect.addEventListener('change', () => renderDashboard());
-        
         renderDashboard();
     }
 
@@ -494,25 +197,16 @@
 
     function getAreaData(area, ano, mes, polo) {
         const monthEvents = getFilteredEventsForMonth(ano, mes, area, polo);
-        
         const tecnicosMap = new Map();
+        
         monthEvents.forEach(event => {
             const key = event.tecnico;
             if (!tecnicosMap.has(key)) {
-                tecnicosMap.set(key, {
-                    tecnico: event.tecnico,
-                    area: area,
-                    totalAnalises: 0,
-                    totalReparacoes: 0,
-                    diasTrabalhados: new Set()
-                });
+                tecnicosMap.set(key, { tecnico: event.tecnico, area, totalAnalises: 0, totalReparacoes: 0, diasTrabalhados: new Set() });
             }
             const tech = tecnicosMap.get(key);
-            if (event.tipo === 'analise') {
-                tech.totalAnalises++;
-            } else {
-                tech.totalReparacoes++;
-            }
+            if (event.tipo === 'analise') tech.totalAnalises++;
+            else tech.totalReparacoes++;
             tech.diasTrabalhados.add(event.data.toDateString());
         });
         
@@ -521,7 +215,6 @@
             const diasTrab = tech.diasTrabalhados.size;
             const metaMensalAnalise = meta.analise * diasTrab;
             const metaMensalReparacao = meta.reparacao * diasTrab;
-            
             let produtividade = 0;
             if (diasTrab > 0) {
                 const parcelaAnalise = metaMensalAnalise > 0 ? tech.totalAnalises / metaMensalAnalise : 0;
@@ -533,56 +226,34 @@
         
         const totalAnalises = tecnicosList.reduce((s, t) => s + t.totalAnalises, 0);
         const totalReparacoes = tecnicosList.reduce((s, t) => s + t.totalReparacoes, 0);
-        const mediaProdutividade = tecnicosList.length > 0 ? 
-            tecnicosList.reduce((s, t) => s + t.produtividade, 0) / tecnicosList.length : 0;
+        const mediaProdutividade = tecnicosList.length ? tecnicosList.reduce((s, t) => s + t.produtividade, 0) / tecnicosList.length : 0;
         
-        // Média diária de produtividade (média de todas as produtividades diárias dos técnicos)
-        let somaProdDiaria = 0;
+        // Média diária em QUANTIDADE (total tarefas / total dias trabalhados)
+        let totalTarefas = 0;
         let totalDias = 0;
         tecnicosList.forEach(tech => {
-            somaProdDiaria += tech.produtividade;
+            totalTarefas += tech.totalAnalises + tech.totalReparacoes;
             totalDias += tech.diasTrab;
         });
-        const mediaDiaria = totalDias > 0 ? somaProdDiaria / totalDias : 0;
+        const mediaDiariaQuantidade = totalDias > 0 ? totalTarefas / totalDias : 0;
         
-        return {
-            area,
-            tecnicos: tecnicosList,
-            totalAnalises,
-            totalReparacoes,
-            mediaProdutividade,
-            mediaDiaria,
-            totalTecnicos: tecnicosList.length
-        };
+        return { area, tecnicos: tecnicosList, totalAnalises, totalReparacoes, mediaProdutividade, mediaDiaria: mediaDiariaQuantidade, totalTecnicos: tecnicosList.length };
     }
 
     function getEvolucaoData(area, ano, polo) {
-        const meses = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+        const meses = [1,2,3,4,5,6,7,8,9,10,11,12];
         const produtividades = [];
-        
         meses.forEach(mes => {
             const monthEvents = getFilteredEventsForMonth(ano, mes, area, polo);
-            
             const tecnicosMap = new Map();
             monthEvents.forEach(event => {
                 const key = event.tecnico;
-                if (!tecnicosMap.has(key)) {
-                    tecnicosMap.set(key, {
-                        tecnico: event.tecnico,
-                        totalAnalises: 0,
-                        totalReparacoes: 0,
-                        diasTrabalhados: new Set()
-                    });
-                }
+                if (!tecnicosMap.has(key)) tecnicosMap.set(key, { totalAnalises: 0, totalReparacoes: 0, diasTrabalhados: new Set() });
                 const tech = tecnicosMap.get(key);
-                if (event.tipo === 'analise') {
-                    tech.totalAnalises++;
-                } else {
-                    tech.totalReparacoes++;
-                }
+                if (event.tipo === 'analise') tech.totalAnalises++;
+                else tech.totalReparacoes++;
                 tech.diasTrabalhados.add(event.data.toDateString());
             });
-            
             let somaProd = 0;
             let count = 0;
             tecnicosMap.forEach(tech => {
@@ -590,7 +261,6 @@
                 const diasTrab = tech.diasTrabalhados.size;
                 const metaMensalAnalise = meta.analise * diasTrab;
                 const metaMensalReparacao = meta.reparacao * diasTrab;
-                
                 let prod = 0;
                 if (diasTrab > 0) {
                     const parcelaAnalise = metaMensalAnalise > 0 ? tech.totalAnalises / metaMensalAnalise : 0;
@@ -600,10 +270,8 @@
                 somaProd += prod;
                 count++;
             });
-            
             produtividades.push(count > 0 ? somaProd / count : null);
         });
-        
         return produtividades;
     }
 
@@ -611,12 +279,20 @@
         const ano = parseInt(document.getElementById('anoSelect').value);
         const mes = parseInt(document.getElementById('mesSelect').value);
         const polo = document.getElementById('poloSelect').value;
-        
         const container = document.getElementById('dashboardContent');
         container.innerHTML = '';
         container.style.display = 'block';
         
         const areas = Object.keys(METAS);
+        let maxProdutividade = 100;
+        
+        // Primeiro calcular o máximo de produtividade para ajustar a escala
+        areas.forEach(area => {
+            const evolucaoData = getEvolucaoData(area, ano, polo);
+            const maxArea = Math.max(...evolucaoData.filter(v => v !== null));
+            if (maxArea > maxProdutividade) maxProdutividade = maxArea;
+        });
+        maxProdutividade = Math.ceil(maxProdutividade / 10) * 10;
         
         areas.forEach(area => {
             const areaData = getAreaData(area, ano, mes, polo);
@@ -628,75 +304,30 @@
             areaCard.className = 'area-card';
             areaCard.setAttribute('data-area', area);
             
-            // Header expansível
             const header = document.createElement('div');
             header.className = 'area-card-header';
-            header.innerHTML = `
-                <h2>
-                    <span>${area}</span>
-                    <span style="font-size:14px; opacity:0.8;">🎯 ${meta.analise}A / ${meta.reparacao}R (diário)</span>
-                </h2>
-                <div class="area-actions">
-                    <span class="toggle-icon">▼</span>
-                </div>
-            `;
+            header.innerHTML = `<h2><span>${area}</span><span style="font-size:14px;opacity:0.8;">🎯 ${meta.analise}A / ${meta.reparacao}R (diário)</span></h2><div><span class="toggle-icon">▼</span></div>`;
             
             const content = document.createElement('div');
             content.className = 'area-card-content';
-            
-            // Mini Cards
-            const miniCardsHtml = `
+            content.innerHTML = `
                 <div class="mini-cards">
-                    <div class="mini-card" style="border-left-color: ${cor}">
-                        <h4>📊 Produtividade Média</h4>
-                        <div class="value ${areaData.mediaProdutividade >= 100 ? 'progress-good' : 'progress-bad'}">${areaData.mediaProdutividade.toFixed(1)}%</div>
-                    </div>
-                    <div class="mini-card" style="border-left-color: ${cor}">
-                        <h4>🔍 Total Análises</h4>
-                        <div class="value">${areaData.totalAnalises}</div>
-                    </div>
-                    <div class="mini-card" style="border-left-color: ${cor}">
-                        <h4>🔧 Total Reparações</h4>
-                        <div class="value">${areaData.totalReparacoes}</div>
-                    </div>
-                    <div class="mini-card" style="border-left-color: ${cor}">
-                        <h4>👥 Técnicos Ativos</h4>
-                        <div class="value">${areaData.totalTecnicos}</div>
-                    </div>
-                    <div class="mini-card" style="border-left-color: ${cor}">
-                        <h4>📅 Média Diária Prod.</h4>
-                        <div class="value ${areaData.mediaDiaria >= 100 ? 'progress-good' : 'progress-bad'}">${areaData.mediaDiaria.toFixed(1)}%</div>
-                        <div class="unit">por técnico/dia</div>
-                    </div>
+                    <div class="mini-card" style="border-left-color:${cor}"><h4>📊 Produtividade Média</h4><div class="value ${areaData.mediaProdutividade >= 100 ? 'progress-good' : 'progress-bad'}">${areaData.mediaProdutividade.toFixed(1)}%</div></div>
+                    <div class="mini-card" style="border-left-color:${cor}"><h4>🔍 Total Análises</h4><div class="value">${areaData.totalAnalises}</div></div>
+                    <div class="mini-card" style="border-left-color:${cor}"><h4>🔧 Total Reparações</h4><div class="value">${areaData.totalReparacoes}</div></div>
+                    <div class="mini-card" style="border-left-color:${cor}"><h4>👥 Técnicos Ativos</h4><div class="value">${areaData.totalTecnicos}</div></div>
+                    <div class="mini-card" style="border-left-color:${cor}"><h4>📅 Média Diária</h4><div class="value">${areaData.mediaDiaria.toFixed(1)}</div><div class="unit">tarefas/técnico/dia</div></div>
                 </div>
+                <div class="area-chart-container"><h3>📈 Evolução Mensal de Produtividade - ${area}</h3><canvas id="chart-${area.replace(/\s/g, '')}"></canvas></div>
+                <div class="tecnicos-table-wrapper"><h4 style="margin:20px 0 10px 0;">👨‍🔧 Técnicos da Área</h4>
+                <table><thead><tr><th>Técnico</th><th>Dias Trab.</th><th>Análises</th><th>Reparações</th><th>Produtividade</th><th>Ação</th></tr></thead>
+                <tbody id="tecnicos-body-${area.replace(/\s/g, '')}"></tbody></table></div>
             `;
-            content.innerHTML = miniCardsHtml;
-            
-            // Gráfico de evolução mensal
-            const chartContainer = document.createElement('div');
-            chartContainer.className = 'area-chart-container';
-            chartContainer.innerHTML = `<h3>📈 Evolução Mensal de Produtividade - ${area}</h3><canvas id="chart-${area.replace(/\s/g, '')}"></canvas>`;
-            content.appendChild(chartContainer);
-            
-            // Tabela de técnicos
-            const tecnicosTable = document.createElement('div');
-            tecnicosTable.className = 'tecnicos-table-wrapper';
-            tecnicosTable.innerHTML = `
-                <h4 style="margin: 20px 0 10px 0;">👨‍🔧 Técnicos da Área</h4>
-                <table>
-                    <thead>
-                        <tr><th>Técnico</th><th>Dias Trab.</th><th>Total Análises</th><th>Total Reparações</th><th>Produtividade</th><th>Ação</th></tr>
-                    </thead>
-                    <tbody id="tecnicos-body-${area.replace(/\s/g, '')}"></tbody>
-                </table>
-            `;
-            content.appendChild(tecnicosTable);
             
             areaCard.appendChild(header);
             areaCard.appendChild(content);
             container.appendChild(areaCard);
             
-            // Preencher tabela de técnicos
             const tbody = document.getElementById(`tecnicos-body-${area.replace(/\s/g, '')}`);
             if (tbody) {
                 areaData.tecnicos.sort((a,b) => b.produtividade - a.produtividade).forEach(tech => {
@@ -708,67 +339,33 @@
                     const prodCell = row.insertCell(4);
                     prodCell.textContent = `${tech.produtividade.toFixed(1)}%`;
                     prodCell.className = tech.produtividade >= 100 ? 'progress-good' : 'progress-bad';
-                    
                     const actionCell = row.insertCell(5);
                     const excluirBtn = document.createElement('button');
                     excluirBtn.textContent = 'Excluir';
                     excluirBtn.className = 'btn-excluir';
-                    excluirBtn.onclick = () => {
-                        excludedTecnicos.add(tech.tecnico);
-                        renderDashboard();
-                    };
+                    excluirBtn.onclick = () => { excludedTecnicos.add(tech.tecnico); renderDashboard(); };
                     actionCell.appendChild(excluirBtn);
                 });
             }
             
-            // Criar gráfico
             const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
             const ctx = document.getElementById(`chart-${area.replace(/\s/g, '')}`).getContext('2d');
             if (charts[area]) charts[area].destroy();
             charts[area] = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: nomesMeses,
-                    datasets: [{
-                        label: 'Produtividade Média (%)',
-                        data: evolucaoData,
-                        backgroundColor: cor + '80',
-                        borderColor: cor,
-                        borderWidth: 1,
-                        borderRadius: 6
-                    }]
-                },
+                data: { labels: nomesMeses, datasets: [{ label: 'Produtividade Média (%)', data: evolucaoData, backgroundColor: cor + '80', borderColor: cor, borderWidth: 1, borderRadius: 6 }] },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const value = context.raw;
-                                    return value !== null ? `Produtividade: ${value.toFixed(1)}%` : 'Sem dados';
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, title: { display: true, text: '%' }, min: 0, max: 200 },
-                        x: { title: { display: true, text: 'Mês' } }
-                    }
+                    responsive: true, maintainAspectRatio: true,
+                    plugins: { tooltip: { callbacks: { label: (ctx) => ctx.raw !== null ? `Produtividade: ${ctx.raw.toFixed(1)}%` : 'Sem dados' } } },
+                    scales: { y: { beginAtZero: true, title: { display: true, text: '%' }, max: maxProdutividade }, x: { title: { display: true, text: 'Mês' } } }
                 }
             });
             
-            // Toggle expansão
             let isCollapsed = false;
             header.addEventListener('click', () => {
                 isCollapsed = !isCollapsed;
-                if (isCollapsed) {
-                    content.classList.add('collapsed');
-                    header.classList.add('collapsed');
-                } else {
-                    content.classList.remove('collapsed');
-                    header.classList.remove('collapsed');
-                }
+                content.classList.toggle('collapsed', isCollapsed);
+                header.classList.toggle('collapsed', isCollapsed);
             });
         });
     }
