@@ -16,7 +16,7 @@
         .upload-area:hover{border-color:#1a1a2e;background:#fafafa}
         .upload-icon{font-size:48px;margin-bottom:15px}
         .file-info{margin-top:15px;font-size:14px;color:#666}
-        .filters{background:white;padding:20px;border-radius:15px;margin-bottom:25px;display:flex;gap:20px;flex-wrap:wrap}
+        .filters{background:white;padding:20px;border-radius:15px;margin-bottom:25px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end}
         .filter-group{display:flex;flex-direction:column;gap:8px}
         .filter-group label{font-weight:600;font-size:14px;color:#555}
         .filter-group select,.filter-group input{padding:10px 15px;border:1px solid #ddd;border-radius:8px;font-size:14px;min-width:150px}
@@ -35,7 +35,7 @@
         .progress-bad{color:#e74c3c;font-weight:600}
         .charts-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:20px;margin-bottom:25px}
         .chart-container{background:white;border-radius:15px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
-        canvas{max-height:300px}
+        canvas{max-height:300px;width:100%}
         @media (max-width:768px){.filters{flex-direction:column}.charts-row{grid-template-columns:1fr}}
     </style>
 </head>
@@ -62,16 +62,24 @@
             <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
         </select></div>
         <div class="filter-group"><label>🏷️ Área</label><select id="areaSelect"><option value="all">Todas as Áreas</option></select></div>
+        <div class="filter-group"><label>📍 Polo</label><select id="poloSelect"><option value="all">Todos os Polos</option></select></div>
     </div>
 
     <div id="dashboardContent" style="display: none;">
         <div class="cards" id="cards"></div>
+        
         <div class="charts-row">
             <div class="chart-container"><h3>📊 Produtividade por Área (%)</h3><canvas id="areaChart"></canvas></div>
             <div class="chart-container"><h3>🔧 Análises vs Reparações por Área</h3><canvas id="areaBarChart"></canvas></div>
         </div>
+        
+        <div class="chart-container">
+            <h3>📈 Evolução Mensal da Produtividade <span id="evolucaoAreaLabel">(Todas as Áreas)</span></h3>
+            <canvas id="evolucaoChart"></canvas>
+        </div>
+        
         <div class="section"><h2>👨‍🔧 Produtividade Mensal por Técnico</h2>
-            <div class="table-wrapper"><table id="tecnicosTable"><thead><tr><th>Técnico</th><th>Área</th><th>Dias Trab.</th><th>Total Análises</th><th>Total Reparações</th><th>Produtividade Mensal</th></tr></thead><tbody id="tecnicosBody"></tbody></table></div>
+            <div class="table-wrapper"><table id="tecnicosTable"><thead><tr><th>Técnico</th><th>Área</th><th>Polo</th><th>Dias Trab.</th><th>Total Análises</th><th>Total Reparações</th><th>Produtividade Mensal</th></tr></thead><tbody id="tecnicosBody"></tbody></table></div>
         </div>
     </div>
 </div>
@@ -89,22 +97,17 @@
     let rawData = [];
     let processedEvents = [];
     let currentYear = null, currentMonth = null;
-    let areaChart = null, areaBarChart = null;
+    let areaChart = null, areaBarChart = null, evolucaoChart = null;
 
-    // Função para converter data do Excel (texto ou número)
     function parseExcelDate(val) {
         if (!val) return null;
-        // Se for número (formato Excel)
         if (typeof val === 'number') {
             const date = new Date((val - 25569) * 86400000);
             if (!isNaN(date)) return date;
         }
-        // Se for string
         if (typeof val === 'string') {
-            // Tentar formatos comuns
             let parsed = new Date(val);
             if (!isNaN(parsed)) return parsed;
-            // Formato DD/MM/YYYY HH:MM
             const parts = val.match(/(\d{2})\/(\d{2})\/(\d{4})/);
             if (parts) {
                 return new Date(parts[3], parts[2]-1, parts[1]);
@@ -145,7 +148,8 @@
         rawData.forEach(row => {
             const area = getArea(row);
             if (!METAS[area]) return;
-
+            
+            const polo = row.polo || "Não definido";
             const dataAnalise = parseExcelDate(row.analise_tecnica);
             const quemAnalise = row.quem_analise_tecnica;
             const dataReparacao = parseExcelDate(row.reparacao);
@@ -157,7 +161,8 @@
                     tipo: 'analise',
                     data: dataAnalise,
                     tecnico: quemAnalise,
-                    area: area
+                    area: area,
+                    polo: polo
                 });
             }
 
@@ -166,7 +171,8 @@
                     tipo: 'reparacao',
                     data: dataReparacao,
                     tecnico: tecnicoReparacao,
-                    area: area
+                    area: area,
+                    polo: polo
                 });
             }
         });
@@ -174,8 +180,11 @@
 
     function populateFilters() {
         const anos = new Set();
+        const polos = new Set();
+        
         processedEvents.forEach(event => {
             anos.add(event.data.getFullYear());
+            polos.add(event.polo);
         });
         
         const anoSelect = document.getElementById('anoSelect');
@@ -185,6 +194,15 @@
             option.value = ano;
             option.textContent = ano;
             anoSelect.appendChild(option);
+        });
+
+        const poloSelect = document.getElementById('poloSelect');
+        poloSelect.innerHTML = '<option value="all">Todos os Polos</option>';
+        Array.from(polos).sort().forEach(polo => {
+            const option = document.createElement('option');
+            option.value = polo;
+            option.textContent = polo;
+            poloSelect.appendChild(option);
         });
 
         const areas = new Set(Object.keys(METAS));
@@ -200,34 +218,44 @@
         document.getElementById('filters').style.display = 'flex';
         document.getElementById('dashboardContent').style.display = 'block';
         
-        anoSelect.addEventListener('change', updateDashboard);
-        document.getElementById('mesSelect').addEventListener('change', updateDashboard);
-        areaSelect.addEventListener('change', updateDashboard);
+        anoSelect.addEventListener('change', () => { updateDashboard(); updateEvolucao(); });
+        document.getElementById('mesSelect').addEventListener('change', () => updateDashboard());
+        areaSelect.addEventListener('change', () => { updateDashboard(); updateEvolucao(); });
+        poloSelect.addEventListener('change', () => { updateDashboard(); updateEvolucao(); });
         
         updateDashboard();
+        updateEvolucao();
+    }
+
+    function getFilteredEvents() {
+        const ano = parseInt(document.getElementById('anoSelect').value);
+        const mes = parseInt(document.getElementById('mesSelect').value);
+        const areaFilter = document.getElementById('areaSelect').value;
+        const poloFilter = document.getElementById('poloSelect').value;
+        
+        return processedEvents.filter(event => {
+            if (event.data.getFullYear() !== ano) return false;
+            if (event.data.getMonth() + 1 !== mes) return false;
+            if (areaFilter !== 'all' && event.area !== areaFilter) return false;
+            if (poloFilter !== 'all' && event.polo !== poloFilter) return false;
+            return true;
+        });
     }
 
     function updateDashboard() {
-        currentYear = parseInt(document.getElementById('anoSelect').value);
-        currentMonth = parseInt(document.getElementById('mesSelect').value);
+        const monthEvents = getFilteredEvents();
         const areaFilter = document.getElementById('areaSelect').value;
+        const poloFilter = document.getElementById('poloSelect').value;
 
-        // Filtrar eventos por mês/ano
-        const monthEvents = processedEvents.filter(event => {
-            return event.data.getFullYear() === currentYear && 
-                   (event.data.getMonth() + 1) === currentMonth &&
-                   (areaFilter === 'all' || event.area === areaFilter);
-        });
-
-        // Agrupar por técnico e área
         const tecnicosMap = new Map();
 
         monthEvents.forEach(event => {
-            const key = `${event.tecnico}|${event.area}`;
+            const key = `${event.tecnico}|${event.area}|${event.polo}`;
             if (!tecnicosMap.has(key)) {
                 tecnicosMap.set(key, {
                     tecnico: event.tecnico,
                     area: event.area,
+                    polo: event.polo,
                     totalAnalises: 0,
                     totalReparacoes: 0,
                     diasTrabalhados: new Set()
@@ -242,7 +270,6 @@
             tech.diasTrabalhados.add(event.data.toDateString());
         });
 
-        // Calcular produtividade mensal
         const tecnicosList = Array.from(tecnicosMap.values()).map(tech => {
             const meta = METAS[tech.area];
             const diasTrab = tech.diasTrabalhados.size;
@@ -256,14 +283,9 @@
                 produtividade = (parcelaAnalise + parcelaReparacao) * 100;
             }
             
-            return {
-                ...tech,
-                produtividade: produtividade,
-                diasTrab: diasTrab
-            };
+            return { ...tech, produtividade, diasTrab };
         });
 
-        // Agrupar por área
         const areasMap = new Map();
         tecnicosList.forEach(tech => {
             if (!areasMap.has(tech.area)) {
@@ -286,13 +308,11 @@
                 area.produtividades.reduce((a,b) => a+b, 0) / area.produtividades.length : 0
         }));
 
-        // Produtividade global
         const allProds = tecnicosList.map(t => t.produtividade);
         const globalProd = allProds.length > 0 ? allProds.reduce((a,b) => a+b, 0) / allProds.length : 0;
         const totalAnalisesGlobal = tecnicosList.reduce((s,t) => s + t.totalAnalises, 0);
         const totalReparacoesGlobal = tecnicosList.reduce((s,t) => s + t.totalReparacoes, 0);
 
-        // Update cards
         document.getElementById('cards').innerHTML = `
             <div class="card"><h3>📊 Produtividade Global</h3><div class="value ${globalProd >= 100 ? 'progress-good' : 'progress-bad'}">${globalProd.toFixed(1)}%</div></div>
             <div class="card"><h3>🔍 Total Análises</h3><div class="value">${totalAnalisesGlobal}</div></div>
@@ -300,22 +320,21 @@
             <div class="card"><h3>👥 Técnicos Ativos</h3><div class="value">${tecnicosList.length}</div></div>
         `;
 
-        // Tabela de técnicos
         const tecnicosBody = document.getElementById('tecnicosBody');
         tecnicosBody.innerHTML = '';
         tecnicosList.sort((a,b) => b.produtividade - a.produtividade).forEach(tech => {
             const row = tecnicosBody.insertRow();
             row.insertCell(0).textContent = tech.tecnico;
             row.insertCell(1).textContent = tech.area;
-            row.insertCell(2).textContent = tech.diasTrab;
-            row.insertCell(3).textContent = tech.totalAnalises;
-            row.insertCell(4).textContent = tech.totalReparacoes;
-            const prodCell = row.insertCell(5);
+            row.insertCell(2).textContent = tech.polo;
+            row.insertCell(3).textContent = tech.diasTrab;
+            row.insertCell(4).textContent = tech.totalAnalises;
+            row.insertCell(5).textContent = tech.totalReparacoes;
+            const prodCell = row.insertCell(6);
             prodCell.textContent = `${tech.produtividade.toFixed(1)}%`;
             prodCell.className = tech.produtividade >= 100 ? 'progress-good' : 'progress-bad';
         });
 
-        // Gráficos
         const areasOrdenadas = areasList.map(a => a.area);
         const prodAreas = areasList.map(a => a.prodMedia);
         const analisesAreas = areasList.map(a => a.totalAnalises);
@@ -325,7 +344,7 @@
         areaChart = new Chart(document.getElementById('areaChart').getContext('2d'), {
             type: 'bar',
             data: { labels: areasOrdenadas, datasets: [{ label: 'Produtividade Média (%)', data: prodAreas, backgroundColor: '#3498db', borderRadius: 8 }] },
-            options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: '%' } } } }
+            options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, title: { display: true, text: '%' } } } }
         });
 
         if (areaBarChart) areaBarChart.destroy();
@@ -335,7 +354,150 @@
                 { label: 'Total Análises', data: analisesAreas, backgroundColor: '#2ecc71', borderRadius: 8 },
                 { label: 'Total Reparações', data: reparacoesAreas, backgroundColor: '#e74c3c', borderRadius: 8 }
             ] },
-            options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Quantidade' } } } }
+            options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Quantidade' } } } }
+        });
+    }
+
+    function updateEvolucao() {
+        const areaFilter = document.getElementById('areaSelect').value;
+        const poloFilter = document.getElementById('poloSelect').value;
+        const ano = parseInt(document.getElementById('anoSelect').value);
+        
+        document.getElementById('evolucaoAreaLabel').innerHTML = areaFilter !== 'all' ? `- ${areaFilter}` : '(Todas as Áreas)';
+        
+        // Obter todos os meses com dados para o ano selecionado
+        const mesesComDados = new Set();
+        processedEvents.forEach(event => {
+            if (event.data.getFullYear() === ano) {
+                if (areaFilter === 'all' || event.area === areaFilter) {
+                    if (poloFilter === 'all' || event.polo === poloFilter) {
+                        mesesComDados.add(event.data.getMonth() + 1);
+                    }
+                }
+            }
+        });
+        
+        const mesesOrdenados = Array.from(mesesComDados).sort((a,b) => a-b);
+        const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        
+        // Calcular produtividade média por mês para cada área
+        const areasParaEvolucao = areaFilter !== 'all' ? [areaFilter] : Object.keys(METAS);
+        const datasets = [];
+        
+        areasParaEvolucao.forEach(area => {
+            const produtividadesPorMes = [];
+            
+            mesesOrdenados.forEach(mes => {
+                // Filtrar eventos do mês/ano para esta área
+                const monthEvents = processedEvents.filter(event => {
+                    return event.data.getFullYear() === ano &&
+                           event.data.getMonth() + 1 === mes &&
+                           event.area === area &&
+                           (poloFilter === 'all' || event.polo === poloFilter);
+                });
+                
+                // Agrupar por técnico
+                const tecnicosMap = new Map();
+                monthEvents.forEach(event => {
+                    const key = `${event.tecnico}|${event.area}`;
+                    if (!tecnicosMap.has(key)) {
+                        tecnicosMap.set(key, {
+                            tecnico: event.tecnico,
+                            area: event.area,
+                            totalAnalises: 0,
+                            totalReparacoes: 0,
+                            diasTrabalhados: new Set()
+                        });
+                    }
+                    const tech = tecnicosMap.get(key);
+                    if (event.tipo === 'analise') {
+                        tech.totalAnalises++;
+                    } else {
+                        tech.totalReparacoes++;
+                    }
+                    tech.diasTrabalhados.add(event.data.toDateString());
+                });
+                
+                // Calcular produtividade média do mês para esta área
+                let somaProdutividade = 0;
+                let countTecnicos = 0;
+                
+                tecnicosMap.forEach(tech => {
+                    const meta = METAS[tech.area];
+                    const diasTrab = tech.diasTrabalhados.size;
+                    const metaMensalAnalise = meta.analise * diasTrab;
+                    const metaMensalReparacao = meta.reparacao * diasTrab;
+                    
+                    let produtividade = 0;
+                    if (diasTrab > 0) {
+                        const parcelaAnalise = metaMensalAnalise > 0 ? tech.totalAnalises / metaMensalAnalise : 0;
+                        const parcelaReparacao = metaMensalReparacao > 0 ? tech.totalReparacoes / metaMensalReparacao : 0;
+                        produtividade = (parcelaAnalise + parcelaReparacao) * 100;
+                    }
+                    somaProdutividade += produtividade;
+                    countTecnicos++;
+                });
+                
+                const mediaMes = countTecnicos > 0 ? somaProdutividade / countTecnicos : null;
+                produtividadesPorMes.push(mediaMes);
+            });
+            
+            // Cores diferentes para cada área
+            const cores = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
+            const idx = areasParaEvolucao.indexOf(area);
+            
+            datasets.push({
+                label: area,
+                data: produtividadesPorMes,
+                borderColor: cores[idx % cores.length],
+                backgroundColor: 'transparent',
+                tension: 0.3,
+                fill: false,
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6
+            });
+        });
+        
+        if (evolucaoChart) evolucaoChart.destroy();
+        const ctx = document.getElementById('evolucaoChart').getContext('2d');
+        evolucaoChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: mesesOrdenados.map(m => nomesMeses[m-1]),
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                let value = context.raw;
+                                if (value !== null) {
+                                    label += `: ${value.toFixed(1)}%`;
+                                } else {
+                                    label += `: Sem dados`;
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Produtividade (%)' },
+                        min: 0,
+                        max: 200
+                    },
+                    x: {
+                        title: { display: true, text: 'Mês' }
+                    }
+                }
+            }
         });
     }
 </script>
