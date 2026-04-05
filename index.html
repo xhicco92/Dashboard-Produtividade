@@ -29,6 +29,11 @@
         .area-card-header.collapsed .toggle-icon{transform:rotate(-90deg)}
         .area-card-content{padding:25px}
         .area-card-content.collapsed{display:none}
+        .meses-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #eee}
+        .mes-btn{background:#ecf0f1;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:13px;transition:all .2s}
+        .mes-btn:hover{background:#bdc3c7}
+        .mes-btn.selected{background:#3498db;color:white}
+        .mes-btn.selected-ctrl{background:#2ecc71;color:white}
         .mini-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin-bottom:25px}
         .mini-card{background:#f8f9fa;padding:15px;border-radius:12px;text-align:center;border-left:4px solid;transition:transform .2s}
         .mini-card:hover{transform:translateY(-3px)}
@@ -47,7 +52,8 @@
         .btn-excluir{background:#e74c3c;color:white;border:none;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:11px}
         .btn-excluir:hover{background:#c0392b}
         .btn-restaurar{background:#3498db;color:white;border:none;border-radius:5px;padding:8px 15px;cursor:pointer;font-size:12px}
-        @media (max-width:768px){.filters{flex-direction:column}.mini-cards{grid-template-columns:repeat(2,1fr)}.area-card-header h2{font-size:18px}}
+        .info-text{font-size:12px;color:#888;margin-top:5px}
+        @media (max-width:768px){.mini-cards{grid-template-columns:repeat(2,1fr)}.area-card-header h2{font-size:18px}}
     </style>
 </head>
 <body>
@@ -66,12 +72,6 @@
 
     <div class="filters" id="filters" style="display: none;">
         <div class="filter-group"><label>📅 Ano</label><select id="anoSelect"></select></div>
-        <div class="filter-group"><label>📆 Mês</label><select id="mesSelect">
-            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
-            <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
-            <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
-            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-        </select></div>
         <div class="filter-group"><label>📍 Polo</label><select id="poloSelect"><option value="all">Todos os Polos</option></select></div>
         <div class="filter-group"><button id="restaurarTodosBtn" class="btn-restaurar">Restaurar Todos os Técnicos</button></div>
     </div>
@@ -89,7 +89,11 @@
         "Som e Imagem": { analise: 23, reparacao: 10, cor: "#1abc9c" }
     };
 
-    let rawData = [], processedEvents = [], excludedTecnicos = new Set(), charts = {};
+    const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+    let rawData = [], processedEvents = [], excludedTecnicos = new Set();
+    let charts = {};
+    let areaSelecionadosMeses = {}; // Guarda meses selecionados por área
 
     function parseExcelDate(val) {
         if (!val) return null;
@@ -127,6 +131,7 @@
             rawData = json;
             document.getElementById('fileInfo').innerHTML = `📄 ${file.name} (${rawData.length} registos)`;
             excludedTecnicos.clear();
+            areaSelecionadosMeses = {};
             processEvents();
             populateFilters();
         };
@@ -178,28 +183,44 @@
 
         document.getElementById('filters').style.display = 'flex';
         anoSelect.addEventListener('change', () => renderDashboard());
-        document.getElementById('mesSelect').addEventListener('change', () => renderDashboard());
         poloSelect.addEventListener('change', () => renderDashboard());
         renderDashboard();
     }
 
-    function getFilteredEventsForMonth(ano, mes, areaFilter = null, poloFilter = null) {
-        const polo = poloFilter !== null ? poloFilter : document.getElementById('poloSelect').value;
+    function getFilteredEvents(area, ano, polo, mesesSelecionados = null) {
+        const poloValue = document.getElementById('poloSelect').value;
+        const finalPolo = polo !== undefined ? polo : poloValue;
+        
         return processedEvents.filter(event => {
+            if (event.area !== area) return false;
             if (event.data.getFullYear() !== ano) return false;
-            if (event.data.getMonth() + 1 !== mes) return false;
-            if (areaFilter && event.area !== areaFilter) return false;
-            if (polo !== 'all' && event.polo !== polo) return false;
+            if (finalPolo !== 'all' && event.polo !== finalPolo) return false;
             if (excludedTecnicos.has(event.tecnico)) return false;
+            if (mesesSelecionados && mesesSelecionados.length > 0) {
+                const eventMes = event.data.getMonth() + 1;
+                if (!mesesSelecionados.includes(eventMes)) return false;
+            }
             return true;
         });
     }
 
-    function getAreaData(area, ano, mes, polo) {
-        const monthEvents = getFilteredEventsForMonth(ano, mes, area, polo);
-        const tecnicosMap = new Map();
+    function calcularProdutividadeTecnico(tech, meta, diasTrab, totalAnalises, totalReparacoes) {
+        const metaMensalAnalise = meta.analise * diasTrab;
+        const metaMensalReparacao = meta.reparacao * diasTrab;
+        let produtividade = 0;
+        if (diasTrab > 0) {
+            const parcelaAnalise = metaMensalAnalise > 0 ? totalAnalises / metaMensalAnalise : 0;
+            const parcelaReparacao = metaMensalReparacao > 0 ? totalReparacoes / metaMensalReparacao : 0;
+            produtividade = (parcelaAnalise + parcelaReparacao) * 100;
+        }
+        return produtividade;
+    }
+
+    function getAreaData(area, ano, polo, mesesSelecionados) {
+        const events = getFilteredEvents(area, ano, polo, mesesSelecionados);
         
-        monthEvents.forEach(event => {
+        const tecnicosMap = new Map();
+        events.forEach(event => {
             const key = event.tecnico;
             if (!tecnicosMap.has(key)) {
                 tecnicosMap.set(key, { tecnico: event.tecnico, area, totalAnalises: 0, totalReparacoes: 0, diasTrabalhados: new Set() });
@@ -212,43 +233,37 @@
         
         const tecnicosList = Array.from(tecnicosMap.values()).map(tech => {
             const meta = METAS[area];
-            const diasTrab = tech.diasTrabalhados.size;
-            const metaMensalAnalise = meta.analise * diasTrab;
-            const metaMensalReparacao = meta.reparacao * diasTrab;
-            let produtividade = 0;
-            if (diasTrab > 0) {
-                const parcelaAnalise = metaMensalAnalise > 0 ? tech.totalAnalises / metaMensalAnalise : 0;
-                const parcelaReparacao = metaMensalReparacao > 0 ? tech.totalReparacoes / metaMensalReparacao : 0;
-                produtividade = (parcelaAnalise + parcelaReparacao) * 100;
-            }
-            return { ...tech, produtividade, diasTrab };
+            const produtividade = calcularProdutividadeTecnico(tech, meta, tech.diasTrabalhados.size, tech.totalAnalises, tech.totalReparacoes);
+            return { ...tech, produtividade, diasTrab: tech.diasTrabalhados.size };
         });
         
         const totalAnalises = tecnicosList.reduce((s, t) => s + t.totalAnalises, 0);
         const totalReparacoes = tecnicosList.reduce((s, t) => s + t.totalReparacoes, 0);
         const mediaProdutividade = tecnicosList.length ? tecnicosList.reduce((s, t) => s + t.produtividade, 0) / tecnicosList.length : 0;
         
-        // Média diária em QUANTIDADE (total tarefas / total dias trabalhados)
-        let totalTarefas = 0;
+        // Média diária = apenas REPARAÇÕES (tarefas de reparação / total dias trabalhados)
+        let totalReparacoesCount = 0;
         let totalDias = 0;
         tecnicosList.forEach(tech => {
-            totalTarefas += tech.totalAnalises + tech.totalReparacoes;
+            totalReparacoesCount += tech.totalReparacoes;
             totalDias += tech.diasTrab;
         });
-        const mediaDiariaQuantidade = totalDias > 0 ? totalTarefas / totalDias : 0;
+        const mediaDiariaReparacoes = totalDias > 0 ? totalReparacoesCount / totalDias : 0;
         
-        return { area, tecnicos: tecnicosList, totalAnalises, totalReparacoes, mediaProdutividade, mediaDiaria: mediaDiariaQuantidade, totalTecnicos: tecnicosList.length };
+        return { area, tecnicos: tecnicosList, totalAnalises, totalReparacoes, mediaProdutividade, mediaDiaria: mediaDiariaReparacoes, totalTecnicos: tecnicosList.length };
     }
 
     function getEvolucaoData(area, ano, polo) {
         const meses = [1,2,3,4,5,6,7,8,9,10,11,12];
         const produtividades = [];
         meses.forEach(mes => {
-            const monthEvents = getFilteredEventsForMonth(ano, mes, area, polo);
+            const events = getFilteredEvents(area, ano, polo, [mes]);
             const tecnicosMap = new Map();
-            monthEvents.forEach(event => {
+            events.forEach(event => {
                 const key = event.tecnico;
-                if (!tecnicosMap.has(key)) tecnicosMap.set(key, { totalAnalises: 0, totalReparacoes: 0, diasTrabalhados: new Set() });
+                if (!tecnicosMap.has(key)) {
+                    tecnicosMap.set(key, { totalAnalises: 0, totalReparacoes: 0, diasTrabalhados: new Set() });
+                }
                 const tech = tecnicosMap.get(key);
                 if (event.tipo === 'analise') tech.totalAnalises++;
                 else tech.totalReparacoes++;
@@ -258,15 +273,7 @@
             let count = 0;
             tecnicosMap.forEach(tech => {
                 const meta = METAS[area];
-                const diasTrab = tech.diasTrabalhados.size;
-                const metaMensalAnalise = meta.analise * diasTrab;
-                const metaMensalReparacao = meta.reparacao * diasTrab;
-                let prod = 0;
-                if (diasTrab > 0) {
-                    const parcelaAnalise = metaMensalAnalise > 0 ? tech.totalAnalises / metaMensalAnalise : 0;
-                    const parcelaReparacao = metaMensalReparacao > 0 ? tech.totalReparacoes / metaMensalReparacao : 0;
-                    prod = (parcelaAnalise + parcelaReparacao) * 100;
-                }
+                const prod = calcularProdutividadeTecnico(tech, meta, tech.diasTrabalhados.size, tech.totalAnalises, tech.totalReparacoes);
                 somaProd += prod;
                 count++;
             });
@@ -277,28 +284,31 @@
 
     function renderDashboard() {
         const ano = parseInt(document.getElementById('anoSelect').value);
-        const mes = parseInt(document.getElementById('mesSelect').value);
         const polo = document.getElementById('poloSelect').value;
         const container = document.getElementById('dashboardContent');
         container.innerHTML = '';
         container.style.display = 'block';
         
         const areas = Object.keys(METAS);
-        let maxProdutividade = 100;
         
-        // Primeiro calcular o máximo de produtividade para ajustar a escala
+        // Inicializar seleções de meses para áreas que ainda não têm
         areas.forEach(area => {
-            const evolucaoData = getEvolucaoData(area, ano, polo);
-            const maxArea = Math.max(...evolucaoData.filter(v => v !== null));
-            if (maxArea > maxProdutividade) maxProdutividade = maxArea;
+            if (!areaSelecionadosMeses[area]) {
+                areaSelecionadosMeses[area] = []; // vazio = todos os meses
+            }
         });
-        maxProdutividade = Math.ceil(maxProdutividade / 10) * 10;
         
         areas.forEach(area => {
-            const areaData = getAreaData(area, ano, mes, polo);
+            const mesesSelecionados = areaSelecionadosMeses[area];
+            const areaData = getAreaData(area, ano, polo, mesesSelecionados);
             const evolucaoData = getEvolucaoData(area, ano, polo);
             const meta = METAS[area];
             const cor = meta.cor;
+            
+            // Calcular máximo de produtividade para escala do gráfico
+            let maxProdutividade = 100;
+            const maxArea = Math.max(...evolucaoData.filter(v => v !== null));
+            if (maxArea > maxProdutividade) maxProdutividade = Math.ceil(maxArea / 10) * 10;
             
             const areaCard = document.createElement('div');
             areaCard.className = 'area-card';
@@ -310,24 +320,80 @@
             
             const content = document.createElement('div');
             content.className = 'area-card-content';
-            content.innerHTML = `
+            
+            // Botões de meses
+            const mesesDiv = document.createElement('div');
+            mesesDiv.className = 'meses-buttons';
+            for (let i = 0; i < 12; i++) {
+                const btn = document.createElement('button');
+                btn.textContent = NOMES_MESES[i];
+                btn.className = 'mes-btn';
+                if (mesesSelecionados.length === 0) {
+                    // Nenhum selecionado = todos visíveis, mas sem destaque
+                } else if (mesesSelecionados.includes(i+1)) {
+                    btn.classList.add('selected');
+                }
+                
+                btn.onclick = (e) => {
+                    const mesNum = i + 1;
+                    if (e.ctrlKey) {
+                        // Ctrl+Clique: toggle
+                        const index = areaSelecionadosMeses[area].indexOf(mesNum);
+                        if (index === -1) {
+                            areaSelecionadosMeses[area].push(mesNum);
+                        } else {
+                            areaSelecionadosMeses[area].splice(index, 1);
+                        }
+                    } else {
+                        // Clique simples: seleciona apenas este mês
+                        areaSelecionadosMeses[area] = [mesNum];
+                    }
+                    renderDashboard();
+                };
+                mesesDiv.appendChild(btn);
+            }
+            
+            // Info text
+            const infoText = document.createElement('div');
+            infoText.className = 'info-text';
+            infoText.innerHTML = mesesSelecionados.length === 0 ? '📅 Todos os meses selecionados' : `📅 ${mesesSelecionados.length} mês(es) selecionado(s): ${mesesSelecionados.map(m => NOMES_MESES[m-1]).join(', ')}`;
+            
+            content.appendChild(mesesDiv);
+            content.appendChild(infoText);
+            
+            // Mini Cards
+            const miniCardsHtml = `
                 <div class="mini-cards">
                     <div class="mini-card" style="border-left-color:${cor}"><h4>📊 Produtividade Média</h4><div class="value ${areaData.mediaProdutividade >= 100 ? 'progress-good' : 'progress-bad'}">${areaData.mediaProdutividade.toFixed(1)}%</div></div>
                     <div class="mini-card" style="border-left-color:${cor}"><h4>🔍 Total Análises</h4><div class="value">${areaData.totalAnalises}</div></div>
                     <div class="mini-card" style="border-left-color:${cor}"><h4>🔧 Total Reparações</h4><div class="value">${areaData.totalReparacoes}</div></div>
                     <div class="mini-card" style="border-left-color:${cor}"><h4>👥 Técnicos Ativos</h4><div class="value">${areaData.totalTecnicos}</div></div>
-                    <div class="mini-card" style="border-left-color:${cor}"><h4>📅 Média Diária</h4><div class="value">${areaData.mediaDiaria.toFixed(1)}</div><div class="unit">tarefas/técnico/dia</div></div>
+                    <div class="mini-card" style="border-left-color:${cor}"><h4>📅 Média Diária (Rep.)</h4><div class="value">${areaData.mediaDiaria.toFixed(1)}</div><div class="unit">reparações/técnico/dia</div></div>
                 </div>
-                <div class="area-chart-container"><h3>📈 Evolução Mensal de Produtividade - ${area}</h3><canvas id="chart-${area.replace(/\s/g, '')}"></canvas></div>
-                <div class="tecnicos-table-wrapper"><h4 style="margin:20px 0 10px 0;">👨‍🔧 Técnicos da Área</h4>
-                <table><thead><tr><th>Técnico</th><th>Dias Trab.</th><th>Análises</th><th>Reparações</th><th>Produtividade</th><th>Ação</th></tr></thead>
-                <tbody id="tecnicos-body-${area.replace(/\s/g, '')}"></tbody></table></div>
             `;
+            content.insertAdjacentHTML('beforeend', miniCardsHtml);
+            
+            // Gráfico
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'area-chart-container';
+            chartContainer.innerHTML = `<h3>📈 Evolução Mensal de Produtividade - ${area}</h3><canvas id="chart-${area.replace(/\s/g, '')}"></canvas>`;
+            content.appendChild(chartContainer);
+            
+            // Tabela de técnicos
+            const tecnicosTable = document.createElement('div');
+            tecnicosTable.className = 'tecnicos-table-wrapper';
+            tecnicosTable.innerHTML = `
+                <h4 style="margin:20px 0 10px 0;">👨‍🔧 Técnicos da Área</h4>
+                <table><thead><tr><th>Técnico</th><th>Dias Trab.</th><th>Análises</th><th>Reparações</th><th>Produtividade</th><th>Ação</th></tr></thead>
+                <tbody id="tecnicos-body-${area.replace(/\s/g, '')}"></tbody></table>
+            `;
+            content.appendChild(tecnicosTable);
             
             areaCard.appendChild(header);
             areaCard.appendChild(content);
             container.appendChild(areaCard);
             
+            // Preencher tabela
             const tbody = document.getElementById(`tecnicos-body-${area.replace(/\s/g, '')}`);
             if (tbody) {
                 areaData.tecnicos.sort((a,b) => b.produtividade - a.produtividade).forEach(tech => {
@@ -348,12 +414,12 @@
                 });
             }
             
-            const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+            // Criar gráfico
             const ctx = document.getElementById(`chart-${area.replace(/\s/g, '')}`).getContext('2d');
             if (charts[area]) charts[area].destroy();
             charts[area] = new Chart(ctx, {
                 type: 'bar',
-                data: { labels: nomesMeses, datasets: [{ label: 'Produtividade Média (%)', data: evolucaoData, backgroundColor: cor + '80', borderColor: cor, borderWidth: 1, borderRadius: 6 }] },
+                data: { labels: NOMES_MESES, datasets: [{ label: 'Produtividade Média (%)', data: evolucaoData, backgroundColor: cor + '80', borderColor: cor, borderWidth: 1, borderRadius: 6 }] },
                 options: {
                     responsive: true, maintainAspectRatio: true,
                     plugins: { tooltip: { callbacks: { label: (ctx) => ctx.raw !== null ? `Produtividade: ${ctx.raw.toFixed(1)}%` : 'Sem dados' } } },
@@ -361,6 +427,7 @@
                 }
             });
             
+            // Toggle expansão
             let isCollapsed = false;
             header.addEventListener('click', () => {
                 isCollapsed = !isCollapsed;
