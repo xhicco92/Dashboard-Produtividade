@@ -384,14 +384,14 @@
             const content = document.createElement('div');
             content.className = 'area-card-content';
             
+            // Botões de meses
             const mesesDiv = document.createElement('div');
             mesesDiv.className = 'meses-buttons';
             for (let i = 0; i < 12; i++) {
                 const btn = document.createElement('button');
                 btn.textContent = NOMES_MESES[i];
                 btn.className = 'mes-btn';
-                if (mesesSelecionados.length === 0) {
-                } else if (mesesSelecionados.includes(i+1)) {
+                if (mesesSelecionados.length > 0 && mesesSelecionados.includes(i+1)) {
                     btn.classList.add('selected');
                 }
                 
@@ -413,6 +413,7 @@
             infoText.className = 'info-text';
             infoText.innerHTML = mesesSelecionados.length === 0 ? '📅 Todos os meses selecionados' : `📅 ${mesesSelecionados.length} mês(es): ${mesesSelecionados.map(m => NOMES_MESES[m-1]).join(', ')}`;
             
+            // Filtro de reparações
             const filtroDiv = document.createElement('div');
             filtroDiv.className = 'filtro-reparacoes';
             filtroDiv.innerHTML = `
@@ -435,6 +436,7 @@
             content.appendChild(infoText);
             content.appendChild(filtroDiv);
             
+            // Mini Cards
             const miniCardsHtml = `
                 <div class="mini-cards">
                     <div class="mini-card" style="border-left-color:${cor}"><h4>📊 Produtividade Média</h4><div class="value ${areaData.mediaProdutividade >= 100 ? 'progress-good' : 'progress-bad'}">${areaData.mediaProdutividade.toFixed(1)}%</div></div>
@@ -446,22 +448,25 @@
             `;
             content.insertAdjacentHTML('beforeend', miniCardsHtml);
             
+            // Gráfico de produtividade
             const chartContainer = document.createElement('div');
             chartContainer.className = 'area-chart-container';
             chartContainer.innerHTML = `<h3>📈 Evolução Mensal de Produtividade - ${area}</h3><canvas id="chart-${area.replace(/\s/g, '')}"></canvas>`;
             content.appendChild(chartContainer);
             
+            // Gráfico de reparações
             const reparacoesChartContainer = document.createElement('div');
             reparacoesChartContainer.className = 'reparacoes-chart-container';
             reparacoesChartContainer.innerHTML = `<h3>🔧 Reparações Mensais - ${area} (${filtroReparacoes === 'sucesso' ? 'Com Sucesso' : 'Inclui Rejeitados'})</h3><canvas id="reparacoes-chart-${area.replace(/\s/g, '')}"></canvas>
-            <div class="legenda-grafico">📊 Barras: Total de reparações | 🟢 Linha verde: Média de reparações/dia por técnico (valores com fundo branco)</div>`;
+            <div class="legenda-grafico">📊 Barras: Total de reparações | 🟢 Linha verde: Média de reparações/dia por técnico</div>`;
             content.appendChild(reparacoesChartContainer);
             
+            // Tabela de técnicos
             const tecnicosTable = document.createElement('div');
             tecnicosTable.className = 'tecnicos-table-wrapper';
             tecnicosTable.innerHTML = `
                 <h4 style="margin:20px 0 10px 0;">👨‍🔧 Técnicos da Área</h4>
-                22
+                <table id="table-${area.replace(/\s/g, '')}">
                     <thead>
                         <tr><th>Técnico</th><th>Dias Trab.</th><th>Análises</th><th>Reparações</th><th>Produtividade</th><th>Ação</th>
                     </thead>
@@ -474,8 +479,10 @@
             areaCard.appendChild(content);
             container.appendChild(areaCard);
             
+            // Preencher tabela de técnicos
             const tbody = document.getElementById(`tecnicos-body-${area.replace(/\s/g, '')}`);
             if (tbody) {
+                tbody.innerHTML = '';
                 areaData.tecnicos.sort((a,b) => b.produtividade - a.produtividade).forEach(tech => {
                     const row = tbody.insertRow();
                     row.insertCell(0).textContent = tech.tecnico;
@@ -489,11 +496,17 @@
                     const excluirBtn = document.createElement('button');
                     excluirBtn.textContent = 'Excluir';
                     excluirBtn.className = 'btn-excluir';
-                    excluirBtn.onclick = () => { excludedTecnicos.add(tech.tecnico); renderDashboard(); };
+                    excluirBtn.onclick = (function(tecnicoNome) {
+                        return function() { 
+                            excludedTecnicos.add(tecnicoNome); 
+                            renderDashboard(); 
+                        };
+                    })(tech.tecnico);
                     actionCell.appendChild(excluirBtn);
                 });
             }
             
+            // Gráfico de produtividade
             const ctx = document.getElementById(`chart-${area.replace(/\s/g, '')}`).getContext('2d');
             if (charts[area]) charts[area].destroy();
             charts[area] = new Chart(ctx, {
@@ -506,6 +519,7 @@
                 }
             });
             
+            // Gráfico de reparações
             const ctxRep = document.getElementById(`reparacoes-chart-${area.replace(/\s/g, '')}`).getContext('2d');
             if (reparacoesCharts[area]) reparacoesCharts[area].destroy();
             reparacoesCharts[area] = new Chart(ctxRep, {
@@ -577,7 +591,7 @@
                 }
             });
             
-            // Plugin para adicionar números COM FUNDO BRANCO na linha verde
+            // Plugin para números com fundo branco
             const originalDraw = reparacoesCharts[area].draw;
             reparacoesCharts[area].draw = function() {
                 originalDraw.apply(this, arguments);
@@ -599,21 +613,17 @@
                         const text = value.toFixed(1);
                         const textWidth = ctx.measureText(text).width;
                         
-                        // Desenhar fundo branco com borda arredondada
                         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                        ctx.shadowBlur = 0;
                         ctx.beginPath();
                         ctx.roundRect(x - textWidth/2 - 4, y - 12, textWidth + 8, 18, 6);
                         ctx.fill();
                         
-                        // Desenhar borda verde
                         ctx.strokeStyle = '#2ecc71';
                         ctx.lineWidth = 1;
                         ctx.beginPath();
                         ctx.roundRect(x - textWidth/2 - 4, y - 12, textWidth + 8, 18, 6);
                         ctx.stroke();
                         
-                        // Desenhar texto
                         ctx.fillStyle = '#2ecc71';
                         ctx.fillText(text, x - textWidth/2, y);
                     }
@@ -621,7 +631,6 @@
                 ctx.restore();
             };
             
-            // Helper para roundRect
             if (!CanvasRenderingContext2D.prototype.roundRect) {
                 CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
                     if (w < 2 * r) r = w / 2;
@@ -639,6 +648,7 @@
                 };
             }
             
+            // Toggle expansão
             let isCollapsed = false;
             header.addEventListener('click', () => {
                 isCollapsed = !isCollapsed;
